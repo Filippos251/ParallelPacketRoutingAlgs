@@ -1,0 +1,185 @@
+import numpy as np
+
+# Function to get a valid power of 2 number from the user
+def get_power_of_2(prompt):
+    while True:
+        try:
+            n = int(input(prompt))
+            if n > 0 and (n & (n - 1)) == 0:  # Check if n is a power of 2
+                return n
+            else:
+                print("Please select the size of the mesh, i.e., n (should be a positive number that is a power of 2).")
+        except ValueError:
+            print("Invalid input. Please enter an integer.")
+
+# Function to input an n x n mesh from the user
+def input_mesh_packets(n):
+    print(f"\nEnter the packets for a {n} x {n} mesh row by row.")
+    print("Each packet should be in the format (i, j), where i and j are integers between 0 and n-1.")
+    print("Use '-' to indicate empty cells.")
+    mesh = []
+
+    for i in range(n):
+        while True:
+            try:
+                # Read the row input, split by spaces
+                row = input(f"Enter {n} packets for row {i + 1}, separated by spaces: ").strip().split()
+
+                # Ensure exactly n elements are entered
+                if len(row) != n:
+                    print(f"Please enter exactly {n} packets.")
+                    continue
+
+                # Convert input strings to tuples, handle '-' for empty cells
+                row_converted = []
+                for p in row:
+                    if p == '-':
+                        row_converted.append(None)  # Use None for empty cells
+                    else:
+                        # Remove parentheses, split by commas, and convert to tuple of integers
+                        packet = tuple(map(int, p.strip('()').split(',')))
+
+                        # Validate packet values
+                        if len(packet) != 2 or not (0 <= packet[0] < n and 0 <= packet[1] < n):
+                            raise ValueError(f"Invalid packet {packet}. i and j must be between 0 and {n-1}.")
+
+                        row_converted.append(packet)
+
+                # Append the row to the mesh
+                mesh.append(row_converted)
+                break
+            except ValueError as e:
+                print(e)
+                print("Invalid input. Please enter packets in the format (i, j), or '-' for empty cells.")
+
+    return np.array(mesh, dtype=object)
+
+# Function for snakelike order
+def snakelike_order(matrix):
+    n, m = matrix.shape  # Rows and columns
+    # Flatten the matrix and filter out None
+    flat_packets = [p for p in matrix.flatten() if p is not None]
+
+    # Sort by the j value
+    sorted_packets = sorted(flat_packets, key=lambda x: x[1])
+
+    # Initialize snake order mesh with None
+    snake_order_mesh = np.empty((n, m), dtype=object)
+    snake_order_mesh[:] = None
+
+    # Fill the mesh in a snake-like order
+    index = 0
+    for col in range(m):
+        if col % 2 == 0:  # Even column: top-to-bottom
+            for row in range(n):
+                if index < len(sorted_packets):
+                    snake_order_mesh[row, col] = sorted_packets[index]
+                    index += 1
+        else:  # Odd column: bottom-to-top
+            for row in range(n - 1, -1, -1):
+                if index < len(sorted_packets):
+                    snake_order_mesh[row, col] = sorted_packets[index]
+                    index += 1
+
+    return snake_order_mesh
+
+# Function to sort each column of the mesh based on the j value
+def sort_columns_by_j(matrix):
+    n, m = matrix.shape  # Get the dimensions of the matrix
+
+    # Iterate over each column
+    for col in range(m):
+        # Extract the column's packets, excluding None values
+        column_packets = [p for p in matrix[:, col] if p is not None]
+
+        # Sort the packets in the column based on the j value
+        column_packets.sort(key=lambda x: x[1])
+
+        # Refill the column in the matrix
+        for row in range(n):
+            # If there are packets left, fill the cell; otherwise, set it to None
+            matrix[row, col] = column_packets[row] if row < len(column_packets) else None
+
+    return matrix
+
+# Function to move packets to their direction based on the j value
+def move_packets_to_direction(matrix):
+    n, m = matrix.shape  # Get the dimensions of the matrix
+
+    for row in range(n):
+        # Create a new row filled with None
+        new_row = [None] * m
+
+        # Iterate over the row and move packets to their direction
+        for col in range(m):
+            packet = matrix[row, col]
+            if packet is not None:
+                j_value = packet[1]  # Get the j value of the packet
+                if 0 <= j_value < m:  # Ensure the j value is within valid range
+                    new_row[j_value] = packet  # Place the packet in the correct column
+
+        # Update the row in the matrix
+        matrix[row, :] = new_row
+
+    return matrix
+
+# Function to move packets up or down based on the i value
+def move_packets_to_row(matrix):
+    n, m = matrix.shape  # Get the dimensions of the matrix
+
+    for col in range(m):
+        # Create a new column filled with None
+        new_col = [None] * n
+
+        # Iterate over the column and move packets to their desired rows
+        for row in range(n):
+            packet = matrix[row, col]
+            if packet is not None:
+                i_value = packet[0]  # Get the i value of the packet
+                if 0 <= i_value < n:  # Ensure the i value is within valid range
+                    new_col[i_value] = packet  # Place the packet in the correct row
+
+        # Update the column in the matrix
+        matrix[:, col] = new_col
+
+    return matrix
+
+# Main function
+def main():
+    # Get the size of the matrix (must be a power of 2)
+    n = get_power_of_2("Enter the size of the mesh (must be a power of 2): ")
+
+    # Get the mesh packets from the user
+    matrix = input_mesh_packets(n)
+
+    # Apply the snakelike_order function on the input mesh
+    snakelike_matrix = snakelike_order(matrix)
+
+    # Display the result of snakelike ordering
+    print("\nSnakelike Ordered Mesh(1.1):")
+    print(snakelike_matrix)
+
+    # Apply the column sorting function
+    sorted_matrix = sort_columns_by_j(snakelike_matrix)
+
+    # Display the result of column sorting
+    print("\nMajor Collumn Order(1.2):")
+    print(sorted_matrix)
+
+    # Apply the move packets to direction function
+    direction_matrix = move_packets_to_direction(sorted_matrix)
+
+    # Display the result of moving packets to their direction
+    print("\nGreedy For Collumns(2):")
+    print(direction_matrix)
+
+    # Apply the move packets to their rows based on i value
+    final_matrix = move_packets_to_row(direction_matrix)
+
+    # Display the result of moving packets to their rows
+    print("\nOutput(Greedy For Rows(3)):")
+    print(final_matrix)
+
+# Run the main function
+if __name__ == "__main__":
+    main()
