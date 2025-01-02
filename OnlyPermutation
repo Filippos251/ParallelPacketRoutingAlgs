@@ -91,6 +91,11 @@ def permutation_snakelike(matrix):
 
     return snake_order_mesh
 
+# Function to print the mesh as a formatted n x n matrix
+def print_mesh(matrix):
+    for row in matrix:
+        print(" ".join(str(packet) for packet in row))
+
 # Main function
 def main():
     n = get_power_of_2("Enter the size of the mesh (must be a power of 2): ")
@@ -103,10 +108,10 @@ def main():
         print("The user has inputted exactly n^2 packets, i.e. the problem is permutation routing.")
         permutation_snakelike_matrix = permutation_snakelike(matrix)
         print("\nSnakelike Ordered Mesh (Permutation Problem):")
-        print(permutation_snakelike_matrix)
+        print_mesh(permutation_snakelike_matrix)
         final_matrix = move_packets_to_row(permutation_snakelike_matrix)
         print("\nOutput (Permutation Phase 1.2):")
-        print(final_matrix)
+        print_mesh(final_matrix)
     else:
         print("The user has not inputted exactly n^2 packets.")
         
