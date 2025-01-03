@@ -1,0 +1,210 @@
+import numpy as np
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
+#import time
+
+# Function to get a valid power of 2 number from the user
+def get_power_of_2(prompt):
+    while True:
+        try:
+            n = int(input(prompt))
+            if n > 0 and (n & (n - 1)) == 0:  # Check if n is a power of 2
+                return n
+            else:
+                print("Please select the size of the mesh, i.e. n (should be a positive number that is a power of 2).")
+        except ValueError:
+            print("Invalid input. Please enter an integer.")
+            
+# Function to input an n x n mesh from the user
+def input_mesh_packets(n):
+    print(f"\nEnter the packets for a {n} x {n} mesh row by row.")
+    print("Each packet should be in the format (i, j), where i and j are integers within the range [1, n].")
+    print("Use '-' to indicate empty cells.")
+    mesh = []
+    total_packets = 0  # Counter for the permutation routing case 
+    
+    for i in range(n):
+        while True:
+            try:
+                row = input(f"Enter {n} packets for row {i + 1}, separated by spaces: ").strip().split()
+                
+                if len(row) != n:
+                    print(f"Please enter exactly {n} packets.")
+                    continue
+                
+                row_converted = []
+                for p in row:
+                    if p == '-':
+                        row_converted.append(None)
+                    else:
+                        packet = tuple(map(int, p.strip('()').split(',')))
+                        
+                        if 1 <= packet[0] <= n and 1 <= packet[1] <= n:
+                            row_converted.append(packet)
+                            total_packets += 1
+                        else:
+                            print(f"Invalid packet {packet}. Both i and j must be within the range [1, {n}].")
+                            raise ValueError("Invalid packet range.")
+                
+                mesh.append(row_converted)
+                break
+            except ValueError:
+                print("Invalid input. Please enter packets in the format (i, j), or '-' for empty cells.")
+    
+    return np.array(mesh, dtype=object), total_packets
+
+# Function for snakelike order. Phase 1 Step 1.
+def snakelike_order(matrix):
+    #n, m = matrix.shape
+    n, m = matrix.shape[:2]  # Only take the first two dimensions
+    
+    flat_packets = [p for p in matrix.flatten() if p is not None]
+    sorted_packets = sorted(flat_packets, key=lambda x: x[1])
+    snake_order_mesh = np.empty((n, m), dtype=object)
+    snake_order_mesh[:] = None
+
+    index = 0
+    for col in range(m):
+        if col % 2 == 0:
+            for row in range(n):
+                if index < len(sorted_packets):
+                    snake_order_mesh[row, col] = sorted_packets[index]
+                    index += 1
+        else:
+            for row in range(n - 1, -1, -1):
+                if index < len(sorted_packets):
+                    snake_order_mesh[row, col] = sorted_packets[index]
+                    index += 1
+
+    return snake_order_mesh
+
+# Function to sort each column by the j value. Phase 1 Step 2.
+def sort_columns_by_j(matrix):
+    #n, m = matrix.shape
+    n, m = matrix.shape[:2]  # Only take the first two dimensions
+    
+    for col in range(m):
+        column_packets = [p for p in matrix[:, col] if p is not None]
+        column_packets.sort(key=lambda x: x[1])
+        
+        for row in range(n):
+            matrix[row, col] = column_packets[row] if row < len(column_packets) else None
+    
+    return matrix
+
+# Function to move packets based on the j value
+def move_packets_to_direction(matrix):
+    #n, m = matrix.shape
+    n, m = matrix.shape[:2]  # Only take the first two dimensions
+    
+    for row in range(n):
+        new_row = [None] * m
+        
+        for col in range(m):
+            packet = matrix[row, col]
+            if packet is not None:
+                j_value = packet[1]
+                if 1 <= j_value <= m:
+                    new_row[j_value - 1] = packet
+        
+        matrix[row, :] = new_row
+    
+    return matrix
+
+# Function to move packets to their rows
+def move_packets_to_row(matrix):
+    #n, m = matrix.shape
+    n, m = matrix.shape[:2]  # Only take the first two dimensions
+    
+    for col in range(m):
+        new_col = [None] * n
+        
+        for row in range(n):
+            packet = matrix[row, col]
+            if packet is not None:
+                i_value = packet[0]
+                if 1 <= i_value <= n:
+                    new_col[i_value - 1] = packet
+        
+        matrix[:, col] = new_col
+    
+    return matrix
+
+def permutation_snakelike(matrix):
+    print("Permutation routing.")
+
+    n, m = matrix.shape[:2]  # Only take the first two dimensions
+    flat_packets = [p for row in matrix for p in row if p is not None]
+    sorted_packets = sorted(flat_packets, key=lambda x: x[1])
+    snake_order_mesh = np.empty((n, n), dtype=object)
+    snake_order_mesh[:] = None
+
+    index = 0
+    for col in range(m):
+        if col % 2 == 0:
+            for row in range(n):
+                if index < len(sorted_packets):
+                    snake_order_mesh[row, col] = sorted_packets[index]
+                    index += 1
+        else:
+            for row in range(n - 1, -1, -1):
+                if index < len(sorted_packets):
+                    snake_order_mesh[row, col] = sorted_packets[index]
+                    index += 1
+
+    return snake_order_mesh
+
+# Function to print the mesh as a formatted n x n matrix
+def print_mesh(matrix):
+    for row in matrix:
+        print(" ".join(str(packet) for packet in row))
+
+
+# Main function
+def main():
+    n = get_power_of_2("Enter the size of the mesh (must be a power of 2): ")
+    #matrix = input_mesh_packets(n)
+    #total_packets = np.count_nonzero(matrix != None)
+    matrix, total_packets = input_mesh_packets(n)
+
+    # Debug print to verify the total number of packets
+    print(f"Total packets: {total_packets}")
+    
+   
+    
+    if total_packets == n**2:
+        print("The user has inputted exactly n^2 packets, i.e. the problem is permutation routing.")
+        # Parallel execution
+        #start_time = time.time()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future_permutation = executor.submit(permutation_snakelike, matrix)
+            future_final = executor.submit(move_packets_to_row, future_permutation.result())
+            permutation_snakelike_matrix_parallel = future_permutation.result()
+            final_matrix_parallel = future_final.result()
+        #parallel_duration = time.time() - start_time
+
+        print("\nPermutation Problem (Phase 1 Parallel):")
+        print_mesh(final_matrix_parallel)
+        #print(f"\nParallel execution time: {parallel_duration:.6f} seconds")
+    else:
+        print("1-1 problem routing.")
+        with ThreadPoolExecutor() as executor:
+            future1 = executor.submit(snakelike_order, matrix)
+            future2 = executor.submit(sort_columns_by_j, future1.result())
+            snakelike_matrix = future1.result()
+        #print("\nSnakelike Ordered Mesh (Phase 1 Step 1):")
+        #print(snakelike_matrix)
+
+            sorted_matrix = future2.result()
+        print("\nColumn Major Order (Phase 1 (step1.1 and 1.2 run in a parallel manner):")
+        print(sorted_matrix)
+     
+        direction_matrix = move_packets_to_direction(sorted_matrix)
+        print("\nGreedy For Columns (Phase 2):")
+        print(direction_matrix)
+        final_matrix = move_packets_to_row(direction_matrix)
+        print("\nOutput (Greedy For Rows):")
+        print(final_matrix)
+
+if __name__ == "__main__":
+    main()
