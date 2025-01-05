@@ -1,0 +1,279 @@
+import numpy as np
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
+import time
+
+# Function for snakelike order. Phase 1 Step 1.
+def snakelike_order(matrix):
+    n, m = matrix.shape[:2]  # Only take the first two dimensions
+    flat_packets = [p for p in matrix.flatten() if p is not None]
+    sorted_packets = sorted(flat_packets, key=lambda x: x[1])
+    snake_order_mesh = np.empty((n, m), dtype=object)
+    snake_order_mesh[:] = None
+
+    index = 0
+    for col in range(m):
+        if col % 2 == 0:
+            for row in range(n):
+                if index < len(sorted_packets):
+                    snake_order_mesh[row, col] = sorted_packets[index]
+                    index += 1
+        else:
+            for row in range(n - 1, -1, -1):
+                if index < len(sorted_packets):
+                    snake_order_mesh[row, col] = sorted_packets[index]
+                    index += 1
+
+    return snake_order_mesh
+
+# Function to sort each column by the j value. Phase 1 Step 2.
+def sort_columns_by_j(matrix):
+    n, m = matrix.shape[:2]  # Only take the first two dimensions
+    for col in range(m):
+        column_packets = [p for p in matrix[:, col] if p is not None]
+        column_packets.sort(key=lambda x: x[1])
+        for row in range(n):
+            matrix[row, col] = column_packets[row] if row < len(column_packets) else None
+    return matrix
+
+# Function to move packets based on the j value
+def move_packets_to_direction(matrix, q):
+    n, m = matrix.shape[:2]  # Only take the first two dimensions
+    max_queue_size = 2 * q - 1
+
+    for row in range(n):
+        new_row = [[] for _ in range(m)]  # Initialize empty lists for each cell
+        for col in range(m):
+            packet = matrix[row, col]
+            if packet is not None:
+                j_value = int(packet[1])
+                if 1 <= j_value <= m:
+                    new_row[j_value - 1].append(tuple(packet))
+
+        # Ensure max_queue_size is not exceeded and handle excess packets
+        temp_storage = []
+        for col in range(m):
+            if len(new_row[col]) > max_queue_size:
+                temp_storage.extend(new_row[col][max_queue_size:])
+                new_row[col] = new_row[col][:max_queue_size]
+
+        # Convert lists back to single packets or None
+        for col in range(m):
+            if new_row[col]:
+                matrix[row, col] = new_row[col][0]  # Take the first packet from the list
+                if len(new_row[col]) > 1:
+                    # Temporarily store the remaining packets in the same cell
+                    matrix[row, col] = "/".join([str(p) for p in new_row[col]])
+            else:
+                matrix[row, col] = None
+
+        # Place any remaining packets from temp_storage
+        for packet in temp_storage:
+            for col in range(m):
+                if matrix[row, col] is None:
+                    matrix[row, col] = packet
+                    break
+
+    return matrix
+
+# Updated function to move packets to their rows
+def move_packets_to_row(matrix):
+    n, m = matrix.shape[:2]  # Only take the first two dimensions
+    
+    for col in range(m):
+        new_col = [None] * n
+        
+        for row in range(n):
+            packet = matrix[row, col]
+            if packet is not None:
+                if isinstance(packet, str):
+                    # Multiple packets stored as a string, split and process each packet
+                    packets = packet.split('/')
+                    for p in packets:
+                        p = p.strip('()').split(',')
+                        i_value = int(p[0].strip())
+                        j_value = int(p[1].strip())
+                        if 1 <= i_value <= n:
+                            if new_col[i_value - 1] is None:
+                                new_col[i_value - 1] = (i_value, j_value)
+                            else:
+                                new_col[i_value - 1] += f"/({i_value}, {j_value})"  # Append to the existing value if already present
+                else:
+                    i_value = packet[0]
+                    if 1 <= i_value <= n:
+                        new_col[i_value - 1] = packet
+        
+        matrix[:, col] = new_col
+    
+    return matrix
+
+# Function for permutation routing
+def permutation_snakelike(matrix):
+    print("Permutation routing.")
+    n, m = matrix.shape[:2]  # Only take the first two dimensions
+    flat_packets = [p for row in matrix for p in row if p is not None]
+    sorted_packets = sorted(flat_packets, key=lambda x: x[1])
+    snake_order_mesh = np.empty((n, n), dtype=object)
+    snake_order_mesh[:] = None
+
+    index = 0
+    for col in range(m):
+        if col % 2 == 0:
+            for row in range(n):
+                if index < len(sorted_packets):
+                    snake_order_mesh[row, col] = sorted_packets[index]
+                    index += 1
+        else:
+            for row in range(n - 1, -1, -1):
+                if index < len(sorted_packets):
+                    snake_order_mesh[row, col] = sorted_packets[index]
+                    index += 1
+
+    return snake_order_mesh
+
+# Function to print the mesh as a formatted n x n matrix
+def print_mesh(matrix):
+    for row in matrix:
+        print(" ".join(str(packet) for packet in row))
+
+# Function to input an n x n mesh from the user
+def input_mesh_packets(n):
+    print(f"\nEnter the packets for a {n} x {n} mesh row by row.")
+    print("Each packet should be in the format (i, j), where i and j are integers within the range [1, n].")
+    print("Use '-' to indicate empty cells.")
+    mesh = []
+    total_packets = 0  # Counter for the permutation routing case
+
+    for i in range(n):
+        while True:
+            try:
+                row = input(f"Enter {n} packets for row {i + 1}, separated by spaces: ").strip().split()
+                if len(row) != n:
+                    print(f"Please enter exactly {n} packets.")
+                    continue
+                row_converted = []
+                for p in row:
+                    if p == '-':
+                        row_converted.append(None)
+                    else:
+                        packet = tuple(map(int, p.strip('()').split(',')))
+                        if 1 <= packet[0] <= n and 1 <= packet[1] <= n:
+                            row_converted.append(packet)
+                            total_packets += 1
+                        else:
+                            print(f"Invalid packet {packet}. Both i and j must be within the range [1, {n}].")
+                            raise ValueError("Invalid packet range.")
+                mesh.append(row_converted)
+                break
+            except ValueError:
+                print("Invalid input. Please enter packets in the format (i, j), or '-' for empty cells.")
+    return np.array(mesh, dtype=object), total_packets
+
+def create_blocks(mesh, n, q):
+    block_size = n // q
+    blocks = []
+    for i in range(0, n, block_size):
+        for j in range(0, n, block_size):
+            block = mesh[i:i+block_size, j:j+block_size]
+            blocks.append(block)
+    return blocks, block_size
+
+def process_blocks_snakelike_and_sort(blocks):
+    def process_block(block, index):
+        snakelike_block = snakelike_order(block)
+        sorted_block = sort_columns_by_j(snakelike_block)
+        return index, sorted_block
+
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(process_block, block, idx) for idx, block in enumerate(blocks)]
+        results = [future.result() for future in concurrent.futures.as_completed(futures)]
+    
+    # Sort the results based on the original index
+    results.sort(key=lambda x: x[0])
+    return [result[1] for result in results]
+
+def process_blocks_permutation_snakelike_and_sort(blocks):
+    def process_block(block, index):
+        permutation_block = permutation_snakelike(block)
+        sorted_block = sort_columns_by_j(permutation_block)
+        return index, sorted_block
+
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(process_block, block, idx) for idx, block in enumerate(blocks)]
+        results = [future.result() for future in concurrent.futures.as_completed(futures)]
+    
+    # Sort the results based on the original index
+    results.sort(key=lambda x: x[0])
+    return [result[1] for result in results]
+
+def reconstruct_mesh(blocks, n, q, block_size):
+    mesh = np.empty((n, n), dtype=object)
+    index = 0
+    for i in range(0, n, block_size):
+        for j in range(0, n, block_size):
+            block = blocks[index]
+            mesh[i:i+block_size, j:j+block_size] = block
+            index += 1
+    return mesh
+
+def format_matrix(matrix):
+    return "\n".join(" ".join(str(packet) for packet in row) for row in matrix)
+
+def main():
+    n = 4
+    print(f"The value of n is set to {n}.")
+    while True:
+        try:
+            q = int(input("Select the value of q (1, 2, or 4): "))
+            if q in [1, 2, 4] and n % q == 0:
+                break
+            else:
+                print(f"Invalid selection. Please choose 1, 2, or 4, and ensure that {n} is divisible by {q}.")
+        except ValueError:
+            print("Invalid input. Please enter a number (1, 2, or 4).")
+
+    mesh, total_packets = input_mesh_packets(n)
+    print(f"\nMesh:")
+    print_mesh(mesh)  # Printing mesh correctly
+    print(f"Total packets: {total_packets}")
+    print(f"Selected value of q: {q}")
+
+    blocks, block_size = create_blocks(mesh, n, q)
+    print(f"\nBlocks of size {n//q} x {n//q}:")
+
+    for idx, block in enumerate(blocks):
+        print(f"Block {idx + 1}:\n{format_matrix(block)}\n")
+
+    # Measure running time from here
+    start_time = time.time()
+
+    # Choose the appropriate processing function based on the number of packets
+    if total_packets == 16:
+        processed_blocks = process_blocks_permutation_snakelike_and_sort(blocks)
+    else:
+        processed_blocks = process_blocks_snakelike_and_sort(blocks)
+
+    print(f"\nProcessed Blocks:")
+    for idx, result in enumerate(processed_blocks):
+        print(f"Processed Block {idx + 1}:\n{format_matrix(result)}\n")
+
+    final_mesh = reconstruct_mesh(processed_blocks, n, q, block_size)
+    print(f"\nReconstructed Mesh:\n{format_matrix(final_mesh)}")
+
+    moved_mesh = move_packets_to_direction(final_mesh, q)
+    print(f"\nMesh After Moving Packets to Direction:\n{format_matrix(moved_mesh)}")
+
+    final_moved_mesh = move_packets_to_row(moved_mesh)
+    print(f"\nMesh After Moving Packets to Their Rows:\n{format_matrix(final_moved_mesh)}")
+
+    # Measure running time until here
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"\nRunning time from processing blocks to final function: {elapsed_time:.2f} seconds")
+
+    # Print the maximum queue size message
+    max_queue_size = 2 * q - 1
+    print(f"\nMaximum queue size is {max_queue_size}")
+
+if __name__ == "__main__":
+    main()
