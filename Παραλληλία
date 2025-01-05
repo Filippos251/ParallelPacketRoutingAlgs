@@ -1,0 +1,5 @@
+Η παράλληλη εκτέλεση της Φάσης 1 στον Βασικό Αλγόριθμο Δρομολόγησης Πακέτων, δηλαδή η παραλληλία στην snakelike και γραμμική ταξινόμηση με βάση την στήλη προορισμού των πακέτων (column major order),
+επιτυγχάνεται με πολυνηματισμό χρησιμοποιώντας τη βιβλιοθήκη της Python ThreadPoolExecutor από τη κλάση concurrent.futures (from concurrent.futures import ThreadPoolExecutor).
+Με τον ίδιο τρόπο επιτυγχάνεται η παράλληλη υλοποίηση του column major order στα blocks που δημιουργούνται στον παραμετροποιημένο αλγόριθμο δρομολόγησης (Deterministic Routing Alg with 2q-1 max sized queues).
+
+
